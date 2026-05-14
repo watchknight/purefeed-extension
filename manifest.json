@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "PureFeed: Ad & Shorts Blocker",
+  "version": "2.1",
+  "description": "Professional browser extension that blocks YouTube Shorts, Facebook Reels, and all forms of ads.",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    },
+    "default_title": "PureFeed: Ad & Shorts Blocker"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "declarativeNetRequest",
+    "storage"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ad_block_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "css": ["youtube.css"],
+      "js": ["youtube.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "css": ["facebook.css"],
+      "js": ["facebook.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

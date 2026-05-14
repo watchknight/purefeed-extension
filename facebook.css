@@ -1,0 +1,28 @@
+/* ===================================
+   NO SHORTS, REELS & ADS - Facebook
+   =================================== */
+
+/* REELS BLOCKING */
+a[href*="/reel/"],
+a[href*="/reels/"] {
+    display: none !important;
+}
+
+/* AD BLOCKING — CSS Layer */
+
+/* Right sidebar: data-testid based */
+[data-testid="ad_beholder"] {
+    display: none !important;
+}
+
+/* Aria-label based */
+[aria-label="Sponsored"],
+[aria-label="Suggested for you"] {
+    display: none !important;
+}
+
+/* Ad choices / transparency links */
+a[href*="/ads/about/"],
+a[href*="adchoices"] {
+    display: none !important;
+}

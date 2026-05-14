@@ -1,0 +1,150 @@
+/* ===================================
+   PureFeed — YouTube CSS
+   v7 FINAL — History-safe
+   =================================== */
+
+/* ======================
+   SHORTS BLOCKING
+   ====================== */
+
+/* Sidebar (full + mini) */
+ytd-guide-entry-renderer:has(a[title="Shorts"]),
+ytd-guide-entry-renderer:has(a[href="/shorts"]),
+ytd-mini-guide-entry-renderer:has(a[title="Shorts"]),
+ytd-mini-guide-entry-renderer:has(a[href="/shorts"]) {
+    display: none !important;
+}
+
+/* Homepage shelves — these tags are ONLY used for shorts shelves */
+ytd-reel-shelf-renderer,
+ytd-rich-shelf-renderer[is-shorts] {
+    display: none !important;
+}
+
+/* Parent sections wrapping shorts shelves on HOMEPAGE only */
+ytd-rich-section-renderer:has(ytd-reel-shelf-renderer),
+ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]) {
+    display: none !important;
+}
+
+/* Filter chip — hide the "Shorts" chip in filter bars */
+yt-chip-cloud-chip-renderer:has(yt-formatted-string[title="Shorts"]),
+yt-chip-cloud-chip-renderer:has(div[title="Shorts"]) {
+    display: none !important;
+}
+
+/* Individual shorts items — ONLY in rich grids (homepage/subscriptions) */
+ytd-rich-item-renderer:has(a[href*="/shorts/"]),
+ytd-grid-video-renderer:has(a[href*="/shorts/"]),
+ytd-reel-item-renderer {
+    display: none !important;
+}
+
+/* 2025+ view-model shorts elements */
+[class*="shortsLockupViewModelHost"] {
+    display: none !important;
+}
+
+/*
+ * SEARCH RESULTS: Hide shelves that contain shorts.
+ * We ONLY target ytd-shelf-renderer (used in search) with specific shorts content.
+ * We do NOT target ytd-item-section-renderer with a[href="/shorts"] because
+ * that selector also matches the history page (which has a "Shorts" filter chip).
+ */
+ytd-shelf-renderer:has([class*="shortsLockupViewModelHost"]),
+ytd-shelf-renderer:has(ytd-reel-shelf-renderer) {
+    display: none !important;
+}
+
+/* Channel page Shorts tab */
+yt-tab-shape[tab-title="Shorts"] {
+    display: none !important;
+}
+
+/* Shorts notifications */
+ytd-notification-renderer:has(a[href*="/shorts/"]) {
+    display: none !important;
+}
+
+
+/* ======================
+   AD BLOCKING
+   ====================== */
+
+/* Video player ad overlays */
+.ytp-ad-module,
+.ytp-ad-overlay-container,
+.ytp-ad-overlay-slot,
+.ytp-ad-image-overlay,
+.ytp-ad-text-overlay,
+.ytp-ad-skip-button-container,
+.ytp-ad-player-overlay,
+.ytp-ad-player-overlay-instream-info,
+.ytp-ad-player-overlay-layout,
+.ytp-ad-player-overlay-skip-or-preview,
+.ytp-ad-action-interstitial,
+.ytp-ad-action-interstitial-background-container,
+.ytp-ad-action-interstitial-slot,
+.ytp-ad-message-container,
+.video-ads,
+#player-ads,
+#masthead-ad {
+    display: none !important;
+}
+
+/* Feed ad cards */
+ytd-ad-slot-renderer,
+ytd-in-feed-ad-layout-renderer,
+ytd-promoted-sparkles-web-renderer,
+ytd-promoted-video-renderer,
+ytd-display-ad-renderer,
+ytd-banner-promo-renderer,
+ytd-statement-banner-renderer {
+    display: none !important;
+}
+
+/* 2025+ ad view-model */
+feed-ad-metadata-view-model,
+ad-badge-view-model,
+ytd-video-renderer:has(ad-badge-view-model),
+ytd-video-renderer:has(feed-ad-metadata-view-model) {
+    display: none !important;
+}
+
+/* Wrappers containing ads */
+ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+ytd-rich-section-renderer:has(ytd-ad-slot-renderer) {
+    display: none !important;
+}
+
+/* Sidebar companion ads */
+ytd-companion-slot-renderer,
+ytd-action-companion-ad-renderer,
+ytd-compact-promoted-video-renderer,
+ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"] {
+    display: none !important;
+}
+
+/* Search ads */
+ytd-search-pyv-renderer,
+ytd-promoted-sparkles-text-search-renderer {
+    display: none !important;
+}
+
+/* Ad badge/countdown/survey */
+.ytp-ad-badge,
+.ytp-ad-preview-container,
+.ytp-ad-progress-list,
+.ytp-ad-progress,
+.ytp-ad-survey-interstitial,
+.ytp-ad-feedback-dialog-renderer,
+.ytp-suggested-action {
+    display: none !important;
+}
+
+/* Popups/upsells */
+ytd-merch-shelf-renderer,
+ytd-mealbar-promo-renderer,
+tp-yt-paper-dialog:has(yt-upsell-dialog-renderer) {
+    display: none !important;
+}
