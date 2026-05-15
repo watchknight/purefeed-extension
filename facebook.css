@@ -2,9 +2,15 @@
    NO SHORTS, REELS & ADS - Facebook
    =================================== */
 
-/* REELS BLOCKING */
+/* REELS & WATCH BLOCKING */
 a[href*="/reel/"],
 a[href*="/reels/"] {
+    display: none !important;
+}
+
+/* Hide Watch/Video sidebar navigation link */
+a[href="/watch/"],
+a[href="/watch"] {
     display: none !important;
 }
 

@@ -33,6 +33,17 @@
         el.style.setProperty('display', 'none', 'important');
     }
 
+    function hideClosestFeedChild(el) {
+        let p = el.parentElement;
+        for (let i = 0; i < 12 && p; i++) {
+            if (p.parentElement && p.parentElement.getAttribute('role') === 'feed') {
+                hide(p);
+                return;
+            }
+            p = p.parentElement;
+        }
+    }
+
     // ========================
     // REELS REMOVAL
     // ========================
@@ -40,35 +51,57 @@
     function hideReels() {
         if (!settings.fbReels) return;
 
-        document.querySelectorAll('a[href*="/reel/"], a[href*="/reels/"]').forEach(link => {
+        // --- Redirect from reel/reels/watch pages ---
+        const path = window.location.pathname;
+        if (path.startsWith('/reel/') || path.startsWith('/reels') || 
+            path === '/watch' || path.startsWith('/watch/') || path.startsWith('/watch?')) {
+            window.location.replace('/');
+            return; // No point processing further, we're redirecting
+        }
+
+        // --- Hide reel/watch links in feed ---
+        document.querySelectorAll('a[href*="/reel/"], a[href*="/reels/"], a[href*="/watch"]').forEach(link => {
+            const href = link.getAttribute('href') || '';
+            // Allow through specific videos but block watch feed pages
+            if (href.includes('/watch') && href.match(/\/watch[\/?].*v=/)) return;
+
             const post = link.closest('[role="article"]');
             if (post) { hide(post); return; }
-            let p = link.parentElement;
-            for (let i = 0; i < 12 && p; i++) {
-                if (p.parentElement && p.parentElement.getAttribute('role') === 'feed') {
-                    hide(p); break;
+            hideClosestFeedChild(link);
+        });
+
+        // --- Hide "Reels" / "Watch" sidebar navigation links ---
+        document.querySelectorAll('a[href*="/watch"], a[href*="/reel"]').forEach(link => {
+            const href = link.getAttribute('href') || '';
+            // Only target the main /watch or /watch/ navigation links
+            if (href.match(/\/watch[\/]?$/) || href.match(/\/reel(s|\/)?$/)) {
+                // Walk up to find the navigation item container
+                const navItem = link.closest('[role="listitem"], li, [data-visualcompletion]');
+                if (navItem) {
+                    hide(navItem);
+                } else {
+                    // Fallback: hide up to 4 levels
+                    let p = link.parentElement;
+                    for (let i = 0; i < 4 && p; i++) {
+                        const next = p.parentElement;
+                        if (next && (next.getAttribute('role') === 'navigation' || next.getAttribute('role') === 'list')) {
+                            hide(p); break;
+                        }
+                        p = next;
+                    }
                 }
-                p = p.parentElement;
             }
         });
 
+        // --- Hide "Reels and short videos" sections in feed ---
         document.querySelectorAll('span[dir="auto"]').forEach(span => {
             if (processed.has(span)) return;
             const t = span.textContent.trim();
-            if (t === 'Reels and short videos' || t === 'Reels' || t === 'Reels and Short Videos') {
-                let p = span.parentElement;
-                for (let i = 0; i < 12 && p; i++) {
-                    if (p.parentElement && p.parentElement.getAttribute('role') === 'feed') {
-                        hide(p); break;
-                    }
-                    p = p.parentElement;
-                }
+            if (t === 'Reels and short videos' || t === 'Reels' || t === 'Reels and Short Videos' ||
+                t === 'Watch' || t === 'Videos for you') {
+                hideClosestFeedChild(span);
             }
         });
-
-        if (window.location.pathname.includes('/reel/') || window.location.pathname.includes('/reels/')) {
-            window.location.replace('/');
-        }
     }
 
     // ========================

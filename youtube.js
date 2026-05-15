@@ -139,41 +139,175 @@
     }
 
     // ========================
-    // INSTANT AD SKIP (50ms poll)
+    // INSTANT AD SKIP — Zero-delay system
     // ========================
+    //
+    // Problem: Network rules block ad media, but the YouTube player still
+    // enters "ad-showing" state and waits for the blocked content to load,
+    // causing a visible delay/stall before the real video plays.
+    //
+    // Solution: Multi-layered instant detection:
+    //   1. Ultra-fast poll (16ms via rAF + setInterval fallback)
+    //   2. Force skip/end ad immediately — don't wait for duration
+    //   3. MutationObserver on the player class for instant "ad-showing" detection
+    //   4. Video event listeners to detect stalls from blocked ad media
 
     let wasMutedByUs = false;
+    let adSkipActive = false;
+    let adStartTime = 0;
 
-    function skipVideoAd() {
+    const SKIP_SELECTORS = [
+        '.ytp-ad-skip-button',
+        '.ytp-ad-skip-button-modern',
+        '.ytp-skip-ad-button',
+        'button[class*="ytp-ad-skip"]',
+        '.ytp-ad-skip-button-slot button',
+        '.ytp-ad-skip-button-slot .ytp-ad-skip-button-container button'
+    ].join(', ');
+
+    function clickAllSkipButtons(player) {
+        player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
+            btn.click();
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        // Close overlay ads
+        player.querySelectorAll(
+            '.ytp-ad-overlay-close-button, .ytp-ad-overlay-close-container button'
+        ).forEach(btn => btn.click());
+    }
+
+    function forceSkipAd() {
         if (!settings.ytAds) return;
 
         const player = document.querySelector('.html5-video-player');
         if (!player) return;
 
-        if (player.classList.contains('ad-showing')) {
+        const isAdShowing = player.classList.contains('ad-showing');
+
+        if (isAdShowing) {
+            if (!adSkipActive) {
+                adSkipActive = true;
+                adStartTime = Date.now();
+            }
+
             const video = player.querySelector('video');
             if (video) {
+                // Mute immediately so user never hears ad audio
                 if (!video.muted) { video.muted = true; wasMutedByUs = true; }
+
+                // Speed through the ad as fast as possible
+                try { video.playbackRate = 16; } catch (e) {}
+
+                // Skip to end if duration is known
                 if (isFinite(video.duration) && video.duration > 0) {
-                    video.currentTime = video.duration;
+                    video.currentTime = video.duration - 0.1;
                 }
-                if (video.playbackRate !== 16) video.playbackRate = 16;
+
+                // If ad has been "showing" for >500ms but video hasn't started
+                // (blocked media), force the player to move past it
+                const elapsed = Date.now() - adStartTime;
+                if (elapsed > 500 && (video.readyState < 2 || video.paused)) {
+                    // Try to force-end the ad by seeking and dispatching ended
+                    if (isFinite(video.duration) && video.duration > 0) {
+                        video.currentTime = video.duration;
+                    }
+                    video.dispatchEvent(new Event('ended'));
+                }
+
+                // If blocked for too long (>2s), hide the ad layer entirely
+                // and try to get the underlying video to play
+                if (elapsed > 2000) {
+                    const adContainers = player.querySelectorAll(
+                        '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay, ' +
+                        '.ytp-ad-action-interstitial'
+                    );
+                    adContainers.forEach(c => c.style.setProperty('display', 'none', 'important'));
+                }
             }
-            const skip = player.querySelector(
-                '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, ' +
-                '.ytp-skip-ad-button, button[class*="ytp-ad-skip"]'
-            );
-            if (skip) skip.click();
-            const close = player.querySelector('.ytp-ad-overlay-close-button');
-            if (close) close.click();
-        } else if (wasMutedByUs) {
-            const video = player.querySelector('video');
-            if (video) { video.muted = false; video.playbackRate = 1; }
-            wasMutedByUs = false;
+
+            // Always try to click skip buttons
+            clickAllSkipButtons(player);
+
+        } else {
+            // Ad is done — restore state
+            if (adSkipActive || wasMutedByUs) {
+                const video = player.querySelector('video');
+                if (video) {
+                    if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
+                    try { video.playbackRate = 1; } catch (e) {}
+                    // Ensure the real video plays
+                    if (video.paused && video.readyState >= 2) {
+                        video.play().catch(() => {});
+                    }
+                }
+                adSkipActive = false;
+                adStartTime = 0;
+            }
         }
     }
 
-    setInterval(skipVideoAd, 50);
+    // --- Layer 1: rAF loop for fastest possible detection ---
+    let rafId = null;
+    function startAdSkipRAF() {
+        if (rafId !== null) return;
+        function loop() {
+            forceSkipAd();
+            if (adSkipActive) {
+                rafId = requestAnimationFrame(loop);
+            } else {
+                rafId = null;
+            }
+        }
+        rafId = requestAnimationFrame(loop);
+    }
+
+    // --- Layer 2: setInterval fallback (rAF pauses in background tabs) ---
+    setInterval(() => {
+        forceSkipAd();
+        if (adSkipActive) startAdSkipRAF();
+    }, 100);
+
+    // --- Layer 3: MutationObserver on the player for instant class changes ---
+    function watchPlayerClassChanges() {
+        const player = document.querySelector('.html5-video-player');
+        if (!player) { setTimeout(watchPlayerClassChanges, 500); return; }
+
+        const classObserver = new MutationObserver((mutations) => {
+            if (!settings.ytAds) return;
+            for (const m of mutations) {
+                if (m.attributeName === 'class' && player.classList.contains('ad-showing')) {
+                    startAdSkipRAF();
+                    break;
+                }
+            }
+        });
+        classObserver.observe(player, { attributes: true, attributeFilter: ['class'] });
+
+        // --- Layer 4: Video element event listeners ---
+        let currentVideo = player.querySelector('video');
+        
+        function attachVideoListeners(v) {
+            if (!v) return;
+            const handler = () => {
+                if (player.classList.contains('ad-showing')) startAdSkipRAF();
+            };
+            v.addEventListener('waiting', handler);
+            v.addEventListener('stalled', handler);
+            v.addEventListener('error', handler);
+        }
+        attachVideoListeners(currentVideo);
+        
+        // Re-attach if video element is replaced (SPA navigation)
+        const childObserver = new MutationObserver(() => {
+            const newVideo = player.querySelector('video');
+            if (newVideo && newVideo !== currentVideo) {
+                currentVideo = newVideo;
+                attachVideoListeners(currentVideo);
+            }
+        });
+        childObserver.observe(player, { childList: true, subtree: true });
+    }
+    watchPlayerClassChanges();
 
     // ========================
     // MAIN CLEANUP
