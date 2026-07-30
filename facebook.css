@@ -1,34 +1,21 @@
 /* ===================================
-   NO SHORTS, REELS & ADS - Facebook
+   PureFeed — Facebook CSS
+   v8 OPTIMIZED — Feature Flag Scoped
    =================================== */
 
 /* REELS & WATCH BLOCKING */
-a[href*="/reel/"],
-a[href*="/reels/"] {
-    display: none !important;
-}
-
-/* Hide Watch/Video sidebar navigation link */
-a[href="/watch/"],
-a[href="/watch"] {
+html[data-purefeed-fb-reels="true"] a[href*="/reel/"],
+html[data-purefeed-fb-reels="true"] a[href*="/reels/"],
+html[data-purefeed-fb-reels="true"] a[href="/watch/"],
+html[data-purefeed-fb-reels="true"] a[href="/watch"] {
     display: none !important;
 }
 
 /* AD BLOCKING — CSS Layer */
-
-/* Right sidebar: data-testid based */
-[data-testid="ad_beholder"] {
-    display: none !important;
-}
-
-/* Aria-label based */
-[aria-label="Sponsored"],
-[aria-label="Suggested for you"] {
-    display: none !important;
-}
-
-/* Ad choices / transparency links */
-a[href*="/ads/about/"],
-a[href*="adchoices"] {
+html[data-purefeed-fb-ads="true"] [data-testid="ad_beholder"],
+html[data-purefeed-fb-ads="true"] [aria-label="Sponsored"],
+html[data-purefeed-fb-ads="true"] [aria-label="Suggested for you"],
+html[data-purefeed-fb-ads="true"] a[href*="/ads/about/"],
+html[data-purefeed-fb-ads="true"] a[href*="adchoices"] {
     display: none !important;
 }
