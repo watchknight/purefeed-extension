@@ -1,4 +1,4 @@
-// youtube-main.js — PureFeed v13 ULTIMATE: Zero-latency instant ad skip engine
+// youtube-main.js — PureFeed v14: Instant 0ms ad-skip with forced play trigger
 
 (function () {
     'use strict';
@@ -41,6 +41,12 @@
                 try {
                     if (isFinite(v.duration) && v.duration > 0) {
                         v.currentTime = Math.max(0, v.duration - 0.01);
+                    }
+                } catch(e) {}
+                // Crucial fix: Force play so HTML5 video engine fires the ended event and advances stream!
+                try {
+                    if (v.paused) {
+                        v.play().catch(() => {});
                     }
                 } catch(e) {}
                 try { v.dispatchEvent(new Event('ended', { bubbles: true })); } catch(e) {}
