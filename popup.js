@@ -1,4 +1,4 @@
-// popup.js — Handles toggle state persistence and real-time updates
+// popup.js — Handles toggle state persistence and multi-tab real-time updates
 
 const DEFAULTS = {
   ytShorts: true,
@@ -17,20 +17,26 @@ const TOGGLES = {
 // Load saved state
 chrome.storage.local.get(DEFAULTS, (settings) => {
   for (const [id, key] of Object.entries(TOGGLES)) {
-    document.getElementById(id).checked = settings[key];
+    const el = document.getElementById(id);
+    if (el) el.checked = settings[key];
   }
 });
 
 // Listen for toggle changes
 for (const [id, key] of Object.entries(TOGGLES)) {
-  document.getElementById(id).addEventListener('change', (e) => {
+  const el = document.getElementById(id);
+  if (!el) continue;
+  
+  el.addEventListener('change', (e) => {
     const update = { [key]: e.target.checked };
     chrome.storage.local.set(update);
 
-    // Notify active tab immediately so the content script can react
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'settingsChanged', ...update }).catch(() => {});
+    // Broadcast settings update to ALL open YouTube and Facebook tabs immediately
+    chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://*.facebook.com/*'] }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        tabs.forEach(tab => {
+          chrome.tabs.sendMessage(tab.id, { type: 'settingsChanged', ...update }).catch(() => {});
+        });
       }
     });
   });
