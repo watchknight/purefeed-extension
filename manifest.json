@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PureFeed - Clean Feed & Ad Blocker",
-  "version": "2.2",
+  "version": "2.3",
   "description": "Professional browser extension that hides short-form video feeds and advertisements.",
   "icons": {
     "16": "icon16.png",
@@ -41,6 +41,15 @@
       ],
       "css": ["youtube.css"],
       "js": ["youtube.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://youtube.com/*",
+        "*://*.youtube.com/*"
+      ],
+      "js": ["youtube-main.js"],
+      "world": "MAIN",
       "run_at": "document_start"
     },
     {
