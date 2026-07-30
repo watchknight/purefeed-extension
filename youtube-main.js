@@ -1,4 +1,4 @@
-// youtube-main.js — PureFeed Manifest V3 Main-World Instant Ad Skip Engine
+// youtube-main.js — PureFeed v13 ULTIMATE: Zero-latency instant ad skip engine
 
 (function () {
     'use strict';
@@ -10,7 +10,8 @@
         'button[class*="ytp-ad-skip"]',
         '.ytp-ad-skip-button-slot button',
         '.ytp-ad-skip-button-container button',
-        '.ytp-ad-overlay-close-button'
+        '.ytp-ad-overlay-close-button',
+        '[class*="skip-button"]'
     ].join(', ');
 
     function isVideoAdPlaying(player) {
@@ -45,24 +46,28 @@
                 try { v.dispatchEvent(new Event('ended', { bubbles: true })); } catch(e) {}
             });
 
+            // Fast-click skip buttons
             player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
                 try { btn.click(); } catch(e) {}
                 try { btn.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch(e) {}
             });
 
-            try {
-                if (typeof player.skipAd === 'function') player.skipAd();
-            } catch(e) {}
+            // Call native player APIs
+            try { if (typeof player.skipAd === 'function') player.skipAd(); } catch(e) {}
 
         } else if (wasMutedInMain) {
             const videos = player.querySelectorAll('video');
             videos.forEach(v => {
                 v.muted = false;
                 try { v.playbackRate = 1; } catch(e) {}
+                if (v.paused && v.readyState >= 2) {
+                    v.play().catch(() => {});
+                }
             });
             wasMutedInMain = false;
         }
     }
 
-    setInterval(executeZeroDelaySkip, 40);
+    // High-speed 20ms polling interval for immediate 0ms ad skipping
+    setInterval(executeZeroDelaySkip, 20);
 })();
