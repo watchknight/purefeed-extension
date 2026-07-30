@@ -1,4 +1,4 @@
-// youtube.js — PureFeed v9 AUDITED: Zero-FOUC, locale-resilient, safe MV3 ad & shorts blocker
+// youtube.js — PureFeed v10 ULTIMATE: Zero-delay instant ad skip & shorts blocker
 
 (function () {
     'use strict';
@@ -9,7 +9,6 @@
 
     let settings = { ytShorts: true, ytAds: true };
 
-    // Synchronous immediate flag setting at document_start to prevent FOUC / flickering
     function applyDOMFlags() {
         const root = document.documentElement || document.body;
         if (!root) return;
@@ -17,7 +16,6 @@
         root.setAttribute('data-purefeed-yt-ads', settings.ytAds ? 'true' : 'false');
     }
 
-    // Apply default flags immediately (synchronous)
     applyDOMFlags();
     if (!document.documentElement) {
         document.addEventListener('DOMContentLoaded', applyDOMFlags, { once: true });
@@ -32,7 +30,6 @@
         });
 
         chrome.runtime.onMessage.addListener((msg, sender) => {
-            // Security audit fix: Validate message sender ID
             if (sender.id !== chrome.runtime.id) return;
             if (msg.type === 'settingsChanged') {
                 if (msg.ytShorts !== undefined) settings.ytShorts = msg.ytShorts;
@@ -63,13 +60,13 @@
     }
 
     // ========================
-    // SHORTS REMOVAL (LOCALE RESILIENT)
+    // SHORTS REMOVAL
     // ========================
 
     function removeShorts() {
         if (!settings.ytShorts) return;
 
-        // 1. Sidebar — structural selection via href
+        // 1. Sidebar
         document.querySelectorAll(
             'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer'
         ).forEach(el => {
@@ -100,7 +97,7 @@
             }
         });
 
-        // 5. Shorts filter chip — structural selection via href or path
+        // 5. Shorts filter chip
         document.querySelectorAll('yt-chip-cloud-chip-renderer').forEach(chip => {
             if (processed.has(chip)) return;
             if (chip.querySelector('a[href*="/shorts"], [path*="shorts"]')) {
@@ -108,7 +105,7 @@
             }
         });
 
-        // 6. Channel page Shorts tab — structural selection via endpoint/href
+        // 6. Channel page Shorts tab
         document.querySelectorAll('yt-tab-shape').forEach(tab => {
             if (processed.has(tab)) return;
             if (tab.querySelector('a[href*="/shorts"]') || (tab.getAttribute('tab-title') || '').toLowerCase().includes('shorts')) {
@@ -165,7 +162,7 @@
     }
 
     // ========================
-    // INSTANT AD SKIP — Zero-delay system with readyState checks
+    // INSTANT ZERO-DELAY AD SKIP ENGINE
     // ========================
 
     let wasMutedByUs = false;
@@ -197,7 +194,7 @@
         const player = document.querySelector('.html5-video-player');
         if (!player) return;
 
-        const isAdShowing = player.classList.contains('ad-showing');
+        const isAdShowing = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
 
         if (isAdShowing) {
             if (!adSkipActive) {
@@ -206,40 +203,53 @@
             }
 
             const video = player.querySelector('video');
-            if (video && video.readyState >= 1) { // Robustness audit fix: check readyState >= HAVE_METADATA
+            if (video) {
+                // 1. Instant Mute (0ms delay)
                 if (!video.muted) { video.muted = true; wasMutedByUs = true; }
 
+                // 2. Instant 16x playback speed
                 try { video.playbackRate = 16; } catch (e) {}
 
-                if (isFinite(video.duration) && video.duration > 0) {
-                    video.currentTime = Math.max(0, video.duration - 0.1);
-                }
-
-                const elapsed = Date.now() - adStartTime;
-                if (elapsed > 500 && (video.readyState < 2 || video.paused)) {
+                // 3. Instant Seek to End (No readyState requirement)
+                try {
                     if (isFinite(video.duration) && video.duration > 0) {
-                        video.currentTime = video.duration;
+                        video.currentTime = Math.max(0, video.duration - 0.05);
+                    } else {
+                        video.currentTime = 99999;
                     }
-                    video.dispatchEvent(new Event('ended'));
-                }
+                } catch (e) {}
 
-                if (elapsed > 2000) {
-                    const adContainers = player.querySelectorAll(
-                        '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay, ' +
-                        '.ytp-ad-action-interstitial'
-                    );
-                    adContainers.forEach(c => c.style.setProperty('display', 'none', 'important'));
+                // 4. Instant synthetic ended event dispatch
+                try {
+                    video.dispatchEvent(new Event('ended', { bubbles: true }));
+                } catch (e) {}
+            }
+
+            // 5. Instant Skip Button Clicks
+            clickAllSkipButtons(player);
+
+            // 6. Native YouTube Player API skip invocation
+            try {
+                if (typeof player.skipAd === 'function') player.skipAd();
+            } catch (e) {}
+
+            // 7. Safety override: force-remove ad-showing class if player stalls (>300ms)
+            const elapsed = Date.now() - adStartTime;
+            if (elapsed > 300) {
+                player.classList.remove('ad-showing');
+                player.classList.remove('ad-interrupting');
+                if (video && video.paused) {
+                    video.play().catch(() => {});
                 }
             }
 
-            clickAllSkipButtons(player);
-
         } else if (adSkipActive || wasMutedByUs) {
+            // Ad completed — restore user volume and playback state instantly
             const video = player.querySelector('video');
             if (video) {
                 if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
                 try { video.playbackRate = 1; } catch (e) {}
-                if (video.paused && video.readyState >= 2) {
+                if (video.paused) {
                     video.play().catch(() => {});
                 }
             }
@@ -248,6 +258,7 @@
         }
     }
 
+    // High-frequency rAF loop for sub-millisecond execution
     let rafId = null;
     function startAdSkipRAF() {
         if (rafId !== null) return;
@@ -262,21 +273,23 @@
         rafId = requestAnimationFrame(loop);
     }
 
-    setInterval(() => {
-        if (adSkipActive) {
-            forceSkipAd();
-            startAdSkipRAF();
-        }
-    }, 150);
+    // Continuous 25ms monitor to catch ads instantly as they load
+    setInterval(forceSkipAd, 25);
 
     function watchPlayerClassChanges() {
         const player = document.querySelector('.html5-video-player');
-        if (!player) { setTimeout(watchPlayerClassChanges, 500); return; }
+        if (!player) {
+            setTimeout(watchPlayerClassChanges, 100);
+            return;
+        }
+
+        forceSkipAd();
 
         const classObserver = new MutationObserver((mutations) => {
             if (!settings.ytAds) return;
             for (const m of mutations) {
-                if (m.attributeName === 'class' && player.classList.contains('ad-showing')) {
+                if (m.attributeName === 'class' && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'))) {
+                    forceSkipAd();
                     startAdSkipRAF();
                     break;
                 }
@@ -289,11 +302,14 @@
         function attachVideoListeners(v) {
             if (!v) return;
             const handler = () => {
-                if (player.classList.contains('ad-showing')) startAdSkipRAF();
+                forceSkipAd();
+                startAdSkipRAF();
             };
+            v.addEventListener('timeupdate', handler);
             v.addEventListener('waiting', handler);
             v.addEventListener('stalled', handler);
             v.addEventListener('error', handler);
+            v.addEventListener('loadstart', handler);
         }
         attachVideoListeners(currentVideo);
         
@@ -306,7 +322,18 @@
         });
         childObserver.observe(player, { childList: true, subtree: true });
     }
+    
     watchPlayerClassChanges();
+
+    // Observe document body for player insertion early in page lifecycle
+    const rootObserver = new MutationObserver(() => {
+        if (document.querySelector('.html5-video-player')) {
+            forceSkipAd();
+        }
+    });
+    if (document.documentElement) {
+        rootObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
 
     // ========================
     // MAIN CLEANUP
@@ -328,7 +355,7 @@
 
     const observer = new MutationObserver(() => {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(cleanPage, 200);
+        timer = setTimeout(cleanPage, 150);
     });
 
     function start() {
@@ -342,7 +369,7 @@
     }
 
     start();
-    window.addEventListener('yt-navigate-finish', () => setTimeout(cleanPage, 150));
-    setTimeout(cleanPage, 2000);
-    setTimeout(cleanPage, 4000);
+    window.addEventListener('yt-navigate-finish', () => setTimeout(cleanPage, 100));
+    setTimeout(cleanPage, 1000);
+    setTimeout(cleanPage, 3000);
 })();
