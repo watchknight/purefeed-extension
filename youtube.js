@@ -1,4 +1,4 @@
-// youtube.js — PureFeed v11 ULTIMATE: Main-world injected zero-delay ad skip & shorts blocker
+// youtube.js — PureFeed v12 FIXED: Zero false-positives, regular video playback safe, instant ad skip & shorts blocker
 
 (function () {
     'use strict';
@@ -24,50 +24,61 @@
                     'button[class*="ytp-ad-skip"]',
                     '.ytp-ad-skip-button-slot button',
                     '.ytp-ad-skip-button-container button',
-                    '.ytp-ad-overlay-close-button',
-                    '[class*="skip-button"]'
+                    '.ytp-ad-overlay-close-button'
                 ].join(', ');
+
+                function isVideoAdPlaying(player) {
+                    if (!player) return false;
+                    if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
+                        return true;
+                    }
+                    if (player.querySelector('.ytp-ad-player-overlay, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button')) {
+                        return true;
+                    }
+                    return false;
+                }
+
+                let wasMutedInMain = false;
 
                 function executeZeroDelaySkip() {
                     const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     if (!player) return;
 
-                    const isAdShowing = player.classList.contains('ad-showing') ||
-                                        player.classList.contains('ad-interrupting') ||
-                                        player.classList.contains('ad-created') ||
-                                        player.querySelector('.ytp-ad-player-overlay, .ytp-ad-module, .ytp-ad-badge, ad-badge-view-model, .ytp-ad-text') !== null;
+                    const isAd = isVideoAdPlaying(player);
 
-                    if (isAdShowing) {
-                        // 1. Target all video tags inside player
+                    if (isAd) {
                         const videos = player.querySelectorAll('video');
                         videos.forEach(v => {
-                            if (!v.muted) v.muted = true;
+                            if (!v.muted) { v.muted = true; wasMutedInMain = true; }
                             try { v.playbackRate = 16; } catch(e) {}
                             try {
                                 if (isFinite(v.duration) && v.duration > 0) {
                                     v.currentTime = Math.max(0, v.duration - 0.01);
-                                } else {
-                                    v.currentTime = 99999;
                                 }
                             } catch(e) {}
                             try { v.dispatchEvent(new Event('ended', { bubbles: true })); } catch(e) {}
                         });
 
-                        // 2. Click all skip buttons
                         player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
                             try { btn.click(); } catch(e) {}
                             try { btn.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch(e) {}
                         });
 
-                        // 3. Invoke YouTube internal player API methods directly
                         try {
                             if (typeof player.skipAd === 'function') player.skipAd();
                         } catch(e) {}
+
+                    } else if (wasMutedInMain) {
+                        const videos = player.querySelectorAll('video');
+                        videos.forEach(v => {
+                            v.muted = false;
+                            try { v.playbackRate = 1; } catch(e) {}
+                        });
+                        wasMutedInMain = false;
                     }
                 }
 
-                // Sub-millisecond continuous polling in main world
-                setInterval(executeZeroDelaySkip, 30);
+                setInterval(executeZeroDelaySkip, 50);
             })();
         `;
         (document.head || document.documentElement).appendChild(script);
@@ -236,70 +247,6 @@
             hide(el.closest('ytd-video-renderer, ytd-rich-item-renderer') || el);
         });
     }
-
-    // ========================
-    // CONTENT SCRIPT AD SKIP FALLBACK
-    // ========================
-
-    let wasMutedByUs = false;
-    let adSkipActive = false;
-
-    const SKIP_SELECTORS = [
-        '.ytp-ad-skip-button',
-        '.ytp-ad-skip-button-modern',
-        '.ytp-skip-ad-button',
-        'button[class*="ytp-ad-skip"]',
-        '.ytp-ad-skip-button-slot button',
-        '.ytp-ad-skip-button-slot .ytp-ad-skip-button-container button',
-        '.ytp-ad-overlay-close-button',
-        '[class*="skip-button"]'
-    ].join(', ');
-
-    function forceSkipAd() {
-        if (!settings.ytAds) return;
-
-        const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-        if (!player) return;
-
-        const isAdShowing = player.classList.contains('ad-showing') ||
-                            player.classList.contains('ad-interrupting') ||
-                            player.classList.contains('ad-created') ||
-                            player.querySelector('.ytp-ad-player-overlay, .ytp-ad-module, .ytp-ad-badge, ad-badge-view-model, .ytp-ad-text') !== null;
-
-        if (isAdShowing) {
-            adSkipActive = true;
-            const videos = player.querySelectorAll('video');
-            videos.forEach(video => {
-                if (!video.muted) { video.muted = true; wasMutedByUs = true; }
-                try { video.playbackRate = 16; } catch (e) {}
-                try {
-                    if (isFinite(video.duration) && video.duration > 0) {
-                        video.currentTime = Math.max(0, video.duration - 0.01);
-                    } else {
-                        video.currentTime = 99999;
-                    }
-                } catch (e) {}
-                try { video.dispatchEvent(new Event('ended', { bubbles: true })); } catch (e) {}
-            });
-
-            player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
-                try { btn.click(); } catch (e) {}
-            });
-
-        } else if (adSkipActive || wasMutedByUs) {
-            const video = player.querySelector('video');
-            if (video) {
-                if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
-                try { video.playbackRate = 1; } catch (e) {}
-                if (video.paused) {
-                    video.play().catch(() => {});
-                }
-            }
-            adSkipActive = false;
-        }
-    }
-
-    setInterval(forceSkipAd, 40);
 
     // ========================
     // MAIN CLEANUP
