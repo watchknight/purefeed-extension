@@ -1,10 +1,86 @@
-// youtube.js — PureFeed v10 ULTIMATE: Zero-delay instant ad skip & shorts blocker
+// youtube.js — PureFeed v11 ULTIMATE: Main-world injected zero-delay ad skip & shorts blocker
 
 (function () {
     'use strict';
 
     // ========================
-    // SETTINGS & SYNCHRONOUS DOM FLAGS
+    // MAIN-WORLD INJECTION (Direct access to YouTube #movie_player internal API)
+    // ========================
+
+    function injectMainWorldSkipEngine() {
+        const scriptId = 'purefeed-main-world-skip';
+        if (document.getElementById(scriptId)) return;
+
+        const script = document.createElement('script');
+        script.id = scriptId;
+        script.textContent = `
+            (function() {
+                'use strict';
+                
+                const SKIP_SELECTORS = [
+                    '.ytp-ad-skip-button',
+                    '.ytp-ad-skip-button-modern',
+                    '.ytp-skip-ad-button',
+                    'button[class*="ytp-ad-skip"]',
+                    '.ytp-ad-skip-button-slot button',
+                    '.ytp-ad-skip-button-container button',
+                    '.ytp-ad-overlay-close-button',
+                    '[class*="skip-button"]'
+                ].join(', ');
+
+                function executeZeroDelaySkip() {
+                    const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (!player) return;
+
+                    const isAdShowing = player.classList.contains('ad-showing') ||
+                                        player.classList.contains('ad-interrupting') ||
+                                        player.classList.contains('ad-created') ||
+                                        player.querySelector('.ytp-ad-player-overlay, .ytp-ad-module, .ytp-ad-badge, ad-badge-view-model, .ytp-ad-text') !== null;
+
+                    if (isAdShowing) {
+                        // 1. Target all video tags inside player
+                        const videos = player.querySelectorAll('video');
+                        videos.forEach(v => {
+                            if (!v.muted) v.muted = true;
+                            try { v.playbackRate = 16; } catch(e) {}
+                            try {
+                                if (isFinite(v.duration) && v.duration > 0) {
+                                    v.currentTime = Math.max(0, v.duration - 0.01);
+                                } else {
+                                    v.currentTime = 99999;
+                                }
+                            } catch(e) {}
+                            try { v.dispatchEvent(new Event('ended', { bubbles: true })); } catch(e) {}
+                        });
+
+                        // 2. Click all skip buttons
+                        player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
+                            try { btn.click(); } catch(e) {}
+                            try { btn.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch(e) {}
+                        });
+
+                        // 3. Invoke YouTube internal player API methods directly
+                        try {
+                            if (typeof player.skipAd === 'function') player.skipAd();
+                        } catch(e) {}
+                    }
+                }
+
+                // Sub-millisecond continuous polling in main world
+                setInterval(executeZeroDelaySkip, 30);
+            })();
+        `;
+        (document.head || document.documentElement).appendChild(script);
+    }
+
+    if (document.head || document.documentElement) {
+        injectMainWorldSkipEngine();
+    } else {
+        document.addEventListener('DOMContentLoaded', injectMainWorldSkipEngine, { once: true });
+    }
+
+    // ========================
+    // SETTINGS & DOM FLAGS
     // ========================
 
     let settings = { ytShorts: true, ytAds: true };
@@ -162,12 +238,11 @@
     }
 
     // ========================
-    // INSTANT ZERO-DELAY AD SKIP ENGINE
+    // CONTENT SCRIPT AD SKIP FALLBACK
     // ========================
 
     let wasMutedByUs = false;
     let adSkipActive = false;
-    let adStartTime = 0;
 
     const SKIP_SELECTORS = [
         '.ytp-ad-skip-button',
@@ -175,76 +250,43 @@
         '.ytp-skip-ad-button',
         'button[class*="ytp-ad-skip"]',
         '.ytp-ad-skip-button-slot button',
-        '.ytp-ad-skip-button-slot .ytp-ad-skip-button-container button'
+        '.ytp-ad-skip-button-slot .ytp-ad-skip-button-container button',
+        '.ytp-ad-overlay-close-button',
+        '[class*="skip-button"]'
     ].join(', ');
-
-    function clickAllSkipButtons(player) {
-        player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
-            btn.click();
-            btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-        player.querySelectorAll(
-            '.ytp-ad-overlay-close-button, .ytp-ad-overlay-close-container button'
-        ).forEach(btn => btn.click());
-    }
 
     function forceSkipAd() {
         if (!settings.ytAds) return;
 
-        const player = document.querySelector('.html5-video-player');
+        const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
         if (!player) return;
 
-        const isAdShowing = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
+        const isAdShowing = player.classList.contains('ad-showing') ||
+                            player.classList.contains('ad-interrupting') ||
+                            player.classList.contains('ad-created') ||
+                            player.querySelector('.ytp-ad-player-overlay, .ytp-ad-module, .ytp-ad-badge, ad-badge-view-model, .ytp-ad-text') !== null;
 
         if (isAdShowing) {
-            if (!adSkipActive) {
-                adSkipActive = true;
-                adStartTime = Date.now();
-            }
-
-            const video = player.querySelector('video');
-            if (video) {
-                // 1. Instant Mute (0ms delay)
+            adSkipActive = true;
+            const videos = player.querySelectorAll('video');
+            videos.forEach(video => {
                 if (!video.muted) { video.muted = true; wasMutedByUs = true; }
-
-                // 2. Instant 16x playback speed
                 try { video.playbackRate = 16; } catch (e) {}
-
-                // 3. Instant Seek to End (No readyState requirement)
                 try {
                     if (isFinite(video.duration) && video.duration > 0) {
-                        video.currentTime = Math.max(0, video.duration - 0.05);
+                        video.currentTime = Math.max(0, video.duration - 0.01);
                     } else {
                         video.currentTime = 99999;
                     }
                 } catch (e) {}
+                try { video.dispatchEvent(new Event('ended', { bubbles: true })); } catch (e) {}
+            });
 
-                // 4. Instant synthetic ended event dispatch
-                try {
-                    video.dispatchEvent(new Event('ended', { bubbles: true }));
-                } catch (e) {}
-            }
-
-            // 5. Instant Skip Button Clicks
-            clickAllSkipButtons(player);
-
-            // 6. Native YouTube Player API skip invocation
-            try {
-                if (typeof player.skipAd === 'function') player.skipAd();
-            } catch (e) {}
-
-            // 7. Safety override: force-remove ad-showing class if player stalls (>300ms)
-            const elapsed = Date.now() - adStartTime;
-            if (elapsed > 300) {
-                player.classList.remove('ad-showing');
-                player.classList.remove('ad-interrupting');
-                if (video && video.paused) {
-                    video.play().catch(() => {});
-                }
-            }
+            player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
+                try { btn.click(); } catch (e) {}
+            });
 
         } else if (adSkipActive || wasMutedByUs) {
-            // Ad completed — restore user volume and playback state instantly
             const video = player.querySelector('video');
             if (video) {
                 if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
@@ -254,86 +296,10 @@
                 }
             }
             adSkipActive = false;
-            adStartTime = 0;
         }
     }
 
-    // High-frequency rAF loop for sub-millisecond execution
-    let rafId = null;
-    function startAdSkipRAF() {
-        if (rafId !== null) return;
-        function loop() {
-            forceSkipAd();
-            if (adSkipActive) {
-                rafId = requestAnimationFrame(loop);
-            } else {
-                rafId = null;
-            }
-        }
-        rafId = requestAnimationFrame(loop);
-    }
-
-    // Continuous 25ms monitor to catch ads instantly as they load
-    setInterval(forceSkipAd, 25);
-
-    function watchPlayerClassChanges() {
-        const player = document.querySelector('.html5-video-player');
-        if (!player) {
-            setTimeout(watchPlayerClassChanges, 100);
-            return;
-        }
-
-        forceSkipAd();
-
-        const classObserver = new MutationObserver((mutations) => {
-            if (!settings.ytAds) return;
-            for (const m of mutations) {
-                if (m.attributeName === 'class' && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'))) {
-                    forceSkipAd();
-                    startAdSkipRAF();
-                    break;
-                }
-            }
-        });
-        classObserver.observe(player, { attributes: true, attributeFilter: ['class'] });
-
-        let currentVideo = player.querySelector('video');
-        
-        function attachVideoListeners(v) {
-            if (!v) return;
-            const handler = () => {
-                forceSkipAd();
-                startAdSkipRAF();
-            };
-            v.addEventListener('timeupdate', handler);
-            v.addEventListener('waiting', handler);
-            v.addEventListener('stalled', handler);
-            v.addEventListener('error', handler);
-            v.addEventListener('loadstart', handler);
-        }
-        attachVideoListeners(currentVideo);
-        
-        const childObserver = new MutationObserver(() => {
-            const newVideo = player.querySelector('video');
-            if (newVideo && newVideo !== currentVideo) {
-                currentVideo = newVideo;
-                attachVideoListeners(currentVideo);
-            }
-        });
-        childObserver.observe(player, { childList: true, subtree: true });
-    }
-    
-    watchPlayerClassChanges();
-
-    // Observe document body for player insertion early in page lifecycle
-    const rootObserver = new MutationObserver(() => {
-        if (document.querySelector('.html5-video-player')) {
-            forceSkipAd();
-        }
-    });
-    if (document.documentElement) {
-        rootObserver.observe(document.documentElement, { childList: true, subtree: true });
-    }
+    setInterval(forceSkipAd, 40);
 
     // ========================
     // MAIN CLEANUP
