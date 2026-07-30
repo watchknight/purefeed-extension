@@ -1,22 +1,44 @@
-// youtube.js — PureFeed v7 FINAL: History-safe, instant ad skip
+// youtube.js — PureFeed v9 AUDITED: Zero-FOUC, locale-resilient, safe MV3 ad & shorts blocker
 
 (function () {
     'use strict';
 
     // ========================
-    // SETTINGS
+    // SETTINGS & SYNCHRONOUS DOM FLAGS
     // ========================
 
     let settings = { ytShorts: true, ytAds: true };
 
-    if (chrome.storage) {
+    // Synchronous immediate flag setting at document_start to prevent FOUC / flickering
+    function applyDOMFlags() {
+        const root = document.documentElement || document.body;
+        if (!root) return;
+        root.setAttribute('data-purefeed-yt-shorts', settings.ytShorts ? 'true' : 'false');
+        root.setAttribute('data-purefeed-yt-ads', settings.ytAds ? 'true' : 'false');
+    }
+
+    // Apply default flags immediately (synchronous)
+    applyDOMFlags();
+    if (!document.documentElement) {
+        document.addEventListener('DOMContentLoaded', applyDOMFlags, { once: true });
+    }
+
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         chrome.storage.local.get({ ytShorts: true, ytAds: true }, (s) => {
+            if (chrome.runtime.lastError) return;
             settings = s;
+            applyDOMFlags();
+            cleanPage();
         });
-        chrome.runtime.onMessage.addListener((msg) => {
+
+        chrome.runtime.onMessage.addListener((msg, sender) => {
+            // Security audit fix: Validate message sender ID
+            if (sender.id !== chrome.runtime.id) return;
             if (msg.type === 'settingsChanged') {
                 if (msg.ytShorts !== undefined) settings.ytShorts = msg.ytShorts;
                 if (msg.ytAds !== undefined) settings.ytAds = msg.ytAds;
+                applyDOMFlags();
+                cleanPage();
             }
         });
     }
@@ -33,46 +55,43 @@
         el.style.setProperty('display', 'none', 'important');
     }
 
-    // Pages where shorts hiding should be limited to avoid breaking content
     function isProtectedPage() {
         const path = window.location.pathname;
-        return path.startsWith('/feed/') ||    // history, library, subscriptions
-               path.startsWith('/playlist') || // playlists
-               path === '/';                   // don't break homepage (CSS handles it)
+        return path.startsWith('/feed/') ||
+               path.startsWith('/playlist') ||
+               path === '/';
     }
 
     // ========================
-    // SHORTS REMOVAL
+    // SHORTS REMOVAL (LOCALE RESILIENT)
     // ========================
 
     function removeShorts() {
         if (!settings.ytShorts) return;
 
-        // 1. Sidebar — always safe to hide
+        // 1. Sidebar — structural selection via href
         document.querySelectorAll(
             'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer'
         ).forEach(el => {
             if (processed.has(el)) return;
-            if (el.querySelector('a[title="Shorts"], a[href="/shorts"], a[href="/shorts/"]')) {
+            if (el.querySelector('a[href*="/shorts"]')) {
                 hide(el);
             }
         });
 
-        // 2. Reel shelf tags — these are ONLY used for shorts, safe everywhere
+        // 2. Reel shelf tags
         document.querySelectorAll('ytd-reel-shelf-renderer').forEach(shelf => {
             const parent = shelf.closest('ytd-rich-section-renderer');
             hide(parent || shelf);
         });
 
-        // 3. Rich shelf with is-shorts attribute — only used for shorts
+        // 3. Rich shelf with is-shorts attribute
         document.querySelectorAll('ytd-rich-shelf-renderer[is-shorts]').forEach(shelf => {
             hide(shelf.closest('ytd-rich-section-renderer') || shelf);
         });
 
-        // 4. View-model shorts elements — ONLY hide their immediate container,
-        //    NOT parent ytd-item-section-renderer (which could be the history page)
+        // 4. View-model shorts elements
         document.querySelectorAll('[class*="shortsLockupViewModelHost"]').forEach(el => {
-            // Only hide the shelf-renderer, not item-section-renderer
             const shelf = el.closest('ytd-shelf-renderer, ytd-rich-section-renderer');
             if (shelf) {
                 hide(shelf);
@@ -81,25 +100,32 @@
             }
         });
 
-        // 5. Shorts filter chip — always safe
+        // 5. Shorts filter chip — structural selection via href or path
         document.querySelectorAll('yt-chip-cloud-chip-renderer').forEach(chip => {
             if (processed.has(chip)) return;
-            if (chip.textContent.trim() === 'Shorts') hide(chip);
+            if (chip.querySelector('a[href*="/shorts"], [path*="shorts"]')) {
+                hide(chip);
+            }
         });
 
-        // 6. Channel page Shorts tab
-        document.querySelectorAll('yt-tab-shape[tab-title="Shorts"]').forEach(hide);
+        // 6. Channel page Shorts tab — structural selection via endpoint/href
+        document.querySelectorAll('yt-tab-shape').forEach(tab => {
+            if (processed.has(tab)) return;
+            if (tab.querySelector('a[href*="/shorts"]') || (tab.getAttribute('tab-title') || '').toLowerCase().includes('shorts')) {
+                hide(tab);
+            }
+        });
 
-        // 7. Shelf headers with "Shorts" text — ONLY hide the shelf, not section
+        // 7. Shelf headers with shorts links
         document.querySelectorAll('yt-shelf-header-layout').forEach(header => {
             if (processed.has(header)) return;
-            if (header.querySelector('a[href="/shorts"], a[href="/shorts/"]')) {
+            if (header.querySelector('a[href*="/shorts"]')) {
                 const shelf = header.closest('ytd-shelf-renderer');
                 if (shelf) hide(shelf);
             }
         });
 
-        // 8. Individual shorts links — ONLY on non-protected pages
+        // 8. Individual shorts links — non-protected pages
         if (!isProtectedPage()) {
             document.querySelectorAll('a[href*="/shorts/"]').forEach(link => {
                 const c = link.closest(
@@ -139,18 +165,8 @@
     }
 
     // ========================
-    // INSTANT AD SKIP — Zero-delay system
+    // INSTANT AD SKIP — Zero-delay system with readyState checks
     // ========================
-    //
-    // Problem: Network rules block ad media, but the YouTube player still
-    // enters "ad-showing" state and waits for the blocked content to load,
-    // causing a visible delay/stall before the real video plays.
-    //
-    // Solution: Multi-layered instant detection:
-    //   1. Ultra-fast poll (16ms via rAF + setInterval fallback)
-    //   2. Force skip/end ad immediately — don't wait for duration
-    //   3. MutationObserver on the player class for instant "ad-showing" detection
-    //   4. Video event listeners to detect stalls from blocked ad media
 
     let wasMutedByUs = false;
     let adSkipActive = false;
@@ -170,7 +186,6 @@
             btn.click();
             btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
-        // Close overlay ads
         player.querySelectorAll(
             '.ytp-ad-overlay-close-button, .ytp-ad-overlay-close-container button'
         ).forEach(btn => btn.click());
@@ -191,31 +206,23 @@
             }
 
             const video = player.querySelector('video');
-            if (video) {
-                // Mute immediately so user never hears ad audio
+            if (video && video.readyState >= 1) { // Robustness audit fix: check readyState >= HAVE_METADATA
                 if (!video.muted) { video.muted = true; wasMutedByUs = true; }
 
-                // Speed through the ad as fast as possible
                 try { video.playbackRate = 16; } catch (e) {}
 
-                // Skip to end if duration is known
                 if (isFinite(video.duration) && video.duration > 0) {
-                    video.currentTime = video.duration - 0.1;
+                    video.currentTime = Math.max(0, video.duration - 0.1);
                 }
 
-                // If ad has been "showing" for >500ms but video hasn't started
-                // (blocked media), force the player to move past it
                 const elapsed = Date.now() - adStartTime;
                 if (elapsed > 500 && (video.readyState < 2 || video.paused)) {
-                    // Try to force-end the ad by seeking and dispatching ended
                     if (isFinite(video.duration) && video.duration > 0) {
                         video.currentTime = video.duration;
                     }
                     video.dispatchEvent(new Event('ended'));
                 }
 
-                // If blocked for too long (>2s), hide the ad layer entirely
-                // and try to get the underlying video to play
                 if (elapsed > 2000) {
                     const adContainers = player.querySelectorAll(
                         '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay, ' +
@@ -225,28 +232,22 @@
                 }
             }
 
-            // Always try to click skip buttons
             clickAllSkipButtons(player);
 
-        } else {
-            // Ad is done — restore state
-            if (adSkipActive || wasMutedByUs) {
-                const video = player.querySelector('video');
-                if (video) {
-                    if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
-                    try { video.playbackRate = 1; } catch (e) {}
-                    // Ensure the real video plays
-                    if (video.paused && video.readyState >= 2) {
-                        video.play().catch(() => {});
-                    }
+        } else if (adSkipActive || wasMutedByUs) {
+            const video = player.querySelector('video');
+            if (video) {
+                if (wasMutedByUs) { video.muted = false; wasMutedByUs = false; }
+                try { video.playbackRate = 1; } catch (e) {}
+                if (video.paused && video.readyState >= 2) {
+                    video.play().catch(() => {});
                 }
-                adSkipActive = false;
-                adStartTime = 0;
             }
+            adSkipActive = false;
+            adStartTime = 0;
         }
     }
 
-    // --- Layer 1: rAF loop for fastest possible detection ---
     let rafId = null;
     function startAdSkipRAF() {
         if (rafId !== null) return;
@@ -261,13 +262,13 @@
         rafId = requestAnimationFrame(loop);
     }
 
-    // --- Layer 2: setInterval fallback (rAF pauses in background tabs) ---
     setInterval(() => {
-        forceSkipAd();
-        if (adSkipActive) startAdSkipRAF();
-    }, 100);
+        if (adSkipActive) {
+            forceSkipAd();
+            startAdSkipRAF();
+        }
+    }, 150);
 
-    // --- Layer 3: MutationObserver on the player for instant class changes ---
     function watchPlayerClassChanges() {
         const player = document.querySelector('.html5-video-player');
         if (!player) { setTimeout(watchPlayerClassChanges, 500); return; }
@@ -283,7 +284,6 @@
         });
         classObserver.observe(player, { attributes: true, attributeFilter: ['class'] });
 
-        // --- Layer 4: Video element event listeners ---
         let currentVideo = player.querySelector('video');
         
         function attachVideoListeners(v) {
@@ -297,7 +297,6 @@
         }
         attachVideoListeners(currentVideo);
         
-        // Re-attach if video element is replaced (SPA navigation)
         const childObserver = new MutationObserver(() => {
             const newVideo = player.querySelector('video');
             if (newVideo && newVideo !== currentVideo) {
