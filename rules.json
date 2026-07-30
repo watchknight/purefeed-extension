@@ -40,42 +40,6 @@
     }
   },
   {
-    "id": 5,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "||youtube.com/api/stats/ads",
-      "resourceTypes": ["xmlhttprequest", "other"]
-    }
-  },
-  {
-    "id": 6,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "||youtube.com/pagead/",
-      "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
-    }
-  },
-  {
-    "id": 7,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "||youtube.com/ptracking",
-      "resourceTypes": ["xmlhttprequest", "image"]
-    }
-  },
-  {
-    "id": 8,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "||youtube.com/get_midroll_",
-      "resourceTypes": ["xmlhttprequest"]
-    }
-  },
-  {
     "id": 9,
     "priority": 1,
     "action": { "type": "block" },
