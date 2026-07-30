@@ -5,6 +5,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||googlesyndication.com",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -14,6 +15,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||doubleclick.net",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -23,6 +25,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||googleadservices.com",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -32,6 +35,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||adservice.google.com",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -77,6 +81,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||ads.youtube.com",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -86,6 +91,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||static.doubleclick.net",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame"]
     }
   },
@@ -131,6 +137,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||adsserver.yt",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   }
