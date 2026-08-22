@@ -1,4 +1,4 @@
-// youtube-main.js — PureFeed v16: Settings-synchronized zero-delay ad skip & instant video resume
+// youtube-main.js — PureFeed v17: Adaptive zero-delay ad skip & power-optimized video resume
 
 (function () {
     'use strict';
@@ -27,6 +27,7 @@
 
     let wasMutedInMain = false;
     let adHandlingActive = false;
+    let burstIntervalId = null;
 
     function clickAllSkipButtons(player) {
         player.querySelectorAll(SKIP_SELECTORS).forEach(btn => {
@@ -51,6 +52,10 @@
                 wasMutedInMain = false;
                 adHandlingActive = false;
             }
+            if (burstIntervalId) {
+                clearInterval(burstIntervalId);
+                burstIntervalId = null;
+            }
             return;
         }
 
@@ -58,6 +63,11 @@
         const videos = player.querySelectorAll('video');
 
         if (isAd) {
+            // Activate high-frequency 20ms burst polling during active ad skipping
+            if (!burstIntervalId) {
+                burstIntervalId = setInterval(executeZeroDelaySkip, 20);
+            }
+
             if (!adHandlingActive) {
                 adHandlingActive = true;
 
@@ -97,6 +107,11 @@
         } else if (adHandlingActive || wasMutedInMain) {
             // Ad is completely finished — restore volume, speed, and resume main video
             adHandlingActive = false;
+            if (burstIntervalId) {
+                clearInterval(burstIntervalId);
+                burstIntervalId = null;
+            }
+
             videos.forEach(v => {
                 if (wasMutedInMain) { v.muted = false; }
                 try { v.playbackRate = 1; } catch(e) {}
@@ -109,6 +124,22 @@
         }
     }
 
-    // High-speed 20ms continuous monitoring loop
-    setInterval(executeZeroDelaySkip, 20);
+    // Adaptive background loop (100ms idle interval + event-driven acceleration)
+    setInterval(executeZeroDelaySkip, 100);
+
+    // Event-driven instant response on player class change
+    function initPlayerObserver() {
+        const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+        if (!player) {
+            setTimeout(initPlayerObserver, 200);
+            return;
+        }
+        const observer = new MutationObserver(() => {
+            if (isVideoAdPlaying(player)) {
+                executeZeroDelaySkip();
+            }
+        });
+        observer.observe(player, { attributes: true, attributeFilter: ['class'] });
+    }
+    initPlayerObserver();
 })();
