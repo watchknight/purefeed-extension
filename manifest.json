@@ -24,6 +24,12 @@
     "declarativeNetRequest",
     "storage"
   ],
+  "host_permissions": [
+    "*://youtube.com/*",
+    "*://*.youtube.com/*",
+    "*://facebook.com/*",
+    "*://*.facebook.com/*"
+  ],
   "declarative_net_request": {
     "rule_resources": [
       {
