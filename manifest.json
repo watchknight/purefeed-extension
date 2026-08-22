@@ -47,6 +47,7 @@
       ],
       "css": ["youtube.css"],
       "js": ["youtube.js"],
+      "all_frames": true,
       "run_at": "document_start"
     },
     {
@@ -56,6 +57,7 @@
       ],
       "js": ["youtube-main.js"],
       "world": "MAIN",
+      "all_frames": true,
       "run_at": "document_start"
     },
     {
