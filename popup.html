@@ -22,7 +22,7 @@
     <!-- YouTube Section -->
     <div class="section">
       <div class="section-title">
-        <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
+        <svg width="20" height="14" viewBox="0 0 20 14" fill="none" aria-hidden="true">
           <rect width="20" height="14" rx="3" fill="#FF0000"/>
           <path d="M8 4L13 7L8 10V4Z" fill="white"/>
         </svg>
@@ -30,21 +30,21 @@
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
-          <span class="toggle-label">Block Shorts</span>
+          <span class="toggle-label" id="label-yt-shorts">Block Shorts</span>
           <span class="toggle-desc">Hide all Shorts content</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="yt-shorts" checked>
+        <label class="switch" for="yt-shorts">
+          <input type="checkbox" id="yt-shorts" role="switch" aria-labelledby="label-yt-shorts" aria-label="Block YouTube Shorts" checked>
           <span class="slider"></span>
         </label>
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
-          <span class="toggle-label">Block Ads</span>
+          <span class="toggle-label" id="label-yt-ads">Block Ads</span>
           <span class="toggle-desc">Skip video & banner ads</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="yt-ads" checked>
+        <label class="switch" for="yt-ads">
+          <input type="checkbox" id="yt-ads" role="switch" aria-labelledby="label-yt-ads" aria-label="Block YouTube Ads" checked>
           <span class="slider"></span>
         </label>
       </div>
@@ -53,7 +53,7 @@
     <!-- Facebook Section -->
     <div class="section">
       <div class="section-title">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <circle cx="10" cy="10" r="10" fill="#1877F2"/>
           <path d="M13.5 10.5H11.5V16H9V10.5H7V8.5H9V7C9 5.34 10.34 4 12 4H13.5V6H12.5C11.95 6 11.5 6.45 11.5 7V8.5H13.5L13.5 10.5Z" fill="white"/>
         </svg>
@@ -61,21 +61,21 @@
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
-          <span class="toggle-label">Block Reels</span>
+          <span class="toggle-label" id="label-fb-reels">Block Reels</span>
           <span class="toggle-desc">Hide all Reels content</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="fb-reels" checked>
+        <label class="switch" for="fb-reels">
+          <input type="checkbox" id="fb-reels" role="switch" aria-labelledby="label-fb-reels" aria-label="Block Facebook Reels" checked>
           <span class="slider"></span>
         </label>
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
-          <span class="toggle-label">Block Ads</span>
+          <span class="toggle-label" id="label-fb-ads">Block Ads</span>
           <span class="toggle-desc">Hide sponsored posts & sidebar</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="fb-ads" checked>
+        <label class="switch" for="fb-ads">
+          <input type="checkbox" id="fb-ads" role="switch" aria-labelledby="label-fb-ads" aria-label="Block Facebook Ads" checked>
           <span class="slider"></span>
         </label>
       </div>
@@ -83,7 +83,7 @@
 
     <!-- Footer -->
     <div class="footer">
-      <span>v2.1</span>
+      <span>v2.3</span>
       <span>by Nano Banana Pro</span>
     </div>
   </div>
