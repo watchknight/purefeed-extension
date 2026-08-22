@@ -65,6 +65,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||an.facebook.com",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "image", "sub_frame", "xmlhttprequest", "other"]
     }
   },
@@ -74,6 +75,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||facebook.com/ajax/ads/",
+      "domainType": "thirdParty",
       "resourceTypes": ["xmlhttprequest"]
     }
   },
@@ -83,6 +85,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||facebook.com/adx/",
+      "domainType": "thirdParty",
       "resourceTypes": ["xmlhttprequest", "script"]
     }
   },
@@ -92,6 +95,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "||facebook.net/signals/",
+      "domainType": "thirdParty",
       "resourceTypes": ["script", "xmlhttprequest"]
     }
   },
