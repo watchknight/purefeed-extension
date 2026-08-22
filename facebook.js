@@ -1,7 +1,27 @@
-// facebook.js — PureFeed v9 AUDITED: Zero-FOUC, stack-safe, FIFO-cached anti-scramble blocker
+// facebook.js — PureFeed v10: Centralized selector dictionary, zero-FOUC & anti-scramble blocker
 
 (function () {
     'use strict';
+
+    // ========================
+    // CENTRALIZED SELECTOR MAP
+    // ========================
+
+    const SELECTORS = {
+        reelsLinks: 'a[href*="/reel/"], a[href*="/reels/"], a[href*="/watch"]',
+        navWatchReels: 'a[href*="/watch"], a[href*="/reel"]',
+        navContainers: '[role="listitem"], li, [data-visualcompletion]',
+        articles: '[role="article"]',
+        sponsoredAria: '[aria-label="Sponsored"], [aria-label="Ad"], [aria-label*="Sponsored"]',
+        adLinks: 'a[href*="/ads/about/"], a[href*="adchoices"], a[href*="/ad_preferences/"]',
+        sponsoredSpans: 'a[role="link"] span, a span[dir="auto"]',
+        headerCandidates: 'a span, div > span',
+        autoSpans: 'span[dir="auto"]',
+        feed: '[role="feed"]',
+        rightRail: '[data-pagelet="RightRail"]',
+        rightRailNodes: 'span, a, b, strong, div, h3, h4',
+        adBeholder: '[data-testid="ad_beholder"]'
+    };
 
     // ========================
     // SETTINGS & SYNCHRONOUS DOM FLAGS
@@ -31,7 +51,6 @@
         });
 
         chrome.runtime.onMessage.addListener((msg, sender) => {
-            // Security audit fix: Validate message sender ID
             if (sender.id !== chrome.runtime.id) return;
             if (msg.type === 'settingsChanged') {
                 if (msg.fbReels !== undefined) settings.fbReels = msg.fbReels;
@@ -80,19 +99,19 @@
             return;
         }
 
-        document.querySelectorAll('a[href*="/reel/"], a[href*="/reels/"], a[href*="/watch"]').forEach(link => {
+        document.querySelectorAll(SELECTORS.reelsLinks).forEach(link => {
             const href = link.getAttribute('href') || '';
             if (href.includes('/watch') && href.match(/\/watch[\/?].*v=/)) return;
 
-            const post = link.closest('[role="article"]');
+            const post = link.closest(SELECTORS.articles);
             if (post) { hide(post); return; }
             hideClosestFeedChild(link);
         });
 
-        document.querySelectorAll('a[href*="/watch"], a[href*="/reel"]').forEach(link => {
+        document.querySelectorAll(SELECTORS.navWatchReels).forEach(link => {
             const href = link.getAttribute('href') || '';
             if (href.match(/\/watch[\/]?$/) || href.match(/\/reel(s|\/)?$/)) {
-                const navItem = link.closest('[role="listitem"], li, [data-visualcompletion]');
+                const navItem = link.closest(SELECTORS.navContainers);
                 if (navItem) {
                     hide(navItem);
                 } else {
@@ -109,7 +128,7 @@
         });
 
         // Structural and text fallback
-        document.querySelectorAll('span[dir="auto"]').forEach(span => {
+        document.querySelectorAll(SELECTORS.autoSpans).forEach(span => {
             if (processed.has(span)) return;
             const t = span.textContent.trim().toLowerCase();
             if (t.includes('reels') || t.includes('videos for you')) {
@@ -122,7 +141,6 @@
     // AD / SPONSORED REMOVAL (STACK SAFE)
     // ========================
 
-    // Stack depth protection audit fix
     function getVisibleText(el, depth = 0) {
         if (depth > 10 || !el) return '';
         if (!el.children || el.children.length === 0) {
@@ -193,7 +211,7 @@
             }
         }
 
-        // FIFO Cache Eviction audit fix (prevents cache thrashing)
+        // FIFO Cache Eviction (prevents cache thrashing)
         if (scrambleCache.size > 300) {
             const firstKey = scrambleCache.keys().next().value;
             scrambleCache.delete(firstKey);
@@ -213,14 +231,14 @@
         if (!settings.fbAds) return;
 
         // === FEED ADS ===
-        document.querySelectorAll('[role="article"]').forEach(article => {
+        document.querySelectorAll(SELECTORS.articles).forEach(article => {
             if (processed.has(article)) return;
 
-            if (article.querySelector('[aria-label="Sponsored"], [aria-label="Ad"], [aria-label*="Sponsored"]')) {
+            if (article.querySelector(SELECTORS.sponsoredAria)) {
                 hide(article); return;
             }
 
-            if (article.querySelector('a[href*="/ads/about/"], a[href*="adchoices"], a[href*="/ad_preferences/"]')) {
+            if (article.querySelector(SELECTORS.adLinks)) {
                 hide(article); return;
             }
 
@@ -231,7 +249,7 @@
                 }
             }
 
-            const spans = article.querySelectorAll('a[role="link"] span, a span[dir="auto"]');
+            const spans = article.querySelectorAll(SELECTORS.sponsoredSpans);
             for (const span of spans) {
                 if (span.textContent.length > 30) continue;
                 if (isSponsoredElement(span)) {
@@ -239,7 +257,7 @@
                 }
             }
 
-            const headerCandidates = article.querySelectorAll('a span, div > span');
+            const headerCandidates = article.querySelectorAll(SELECTORS.headerCandidates);
             for (const el of headerCandidates) {
                 if (el.textContent.length > 25) continue;
                 if (el.children.length > 10) continue;
@@ -248,7 +266,7 @@
                 }
             }
 
-            const autoSpans = article.querySelectorAll('span[dir="auto"]');
+            const autoSpans = article.querySelectorAll(SELECTORS.autoSpans);
             for (const span of autoSpans) {
                 if (span.textContent.length > 30) continue;
                 const t = span.textContent.trim().toLowerCase();
@@ -259,11 +277,11 @@
         });
 
         // === FEED-LEVEL ===
-        const feed = document.querySelector('[role="feed"]');
+        const feed = document.querySelector(SELECTORS.feed);
         if (feed) {
             for (const child of feed.children) {
                 if (processed.has(child)) continue;
-                if (child.querySelector('[aria-label="Sponsored"]')) {
+                if (child.querySelector(SELECTORS.sponsoredAria)) {
                     hide(child);
                 } else if (hasCanvasLabel(child)) {
                     hide(child);
@@ -272,9 +290,9 @@
         }
 
         // === RIGHT SIDEBAR ===
-        const rail = document.querySelector('[data-pagelet="RightRail"]');
+        const rail = document.querySelector(SELECTORS.rightRail);
         if (rail) {
-            const allNodes = rail.querySelectorAll('span, a, b, strong, div, h3, h4');
+            const allNodes = rail.querySelectorAll(SELECTORS.rightRailNodes);
             for (const node of allNodes) {
                 if (processed.has(node)) continue;
                 if (node.textContent.length > 25) continue;
@@ -293,13 +311,13 @@
 
             for (const child of rail.children) {
                 if (processed.has(child)) continue;
-                if (child.querySelector('[data-testid="ad_beholder"]') || hasCanvasLabel(child)) {
+                if (child.querySelector(SELECTORS.adBeholder) || hasCanvasLabel(child)) {
                     hide(child);
                 }
             }
         }
 
-        document.querySelectorAll('[data-testid="ad_beholder"]').forEach(hide);
+        document.querySelectorAll(SELECTORS.adBeholder).forEach(hide);
     }
 
     // ========================
