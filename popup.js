@@ -16,6 +16,10 @@ const TOGGLES = {
 
 // Load saved state
 chrome.storage.local.get(DEFAULTS, (settings) => {
+  if (chrome.runtime.lastError) {
+    console.warn('PureFeed: Failed to load settings', chrome.runtime.lastError);
+    return;
+  }
   for (const [id, key] of Object.entries(TOGGLES)) {
     const el = document.getElementById(id);
     if (el) el.checked = settings[key];
@@ -29,7 +33,11 @@ for (const [id, key] of Object.entries(TOGGLES)) {
   
   el.addEventListener('change', (e) => {
     const update = { [key]: e.target.checked };
-    chrome.storage.local.set(update);
+    chrome.storage.local.set(update, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('PureFeed: Failed to save toggle setting', chrome.runtime.lastError);
+      }
+    });
 
     // Broadcast settings update to ALL open YouTube and Facebook tabs immediately
     chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://*.facebook.com/*'] }, (tabs) => {
