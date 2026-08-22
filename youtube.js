@@ -1,7 +1,42 @@
-// youtube.js — PureFeed v12 CLEAN: Isolated world DOM flags, shorts removal & content cleanup
+// youtube.js — PureFeed v18: Centralized selector dictionary & robust DOM cleanup
 
 (function () {
     'use strict';
+
+    // ========================
+    // CENTRALIZED SELECTOR MAP
+    // ========================
+
+    const SELECTORS = {
+        guideShorts: 'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer',
+        reelShelf: 'ytd-reel-shelf-renderer',
+        richSection: 'ytd-rich-section-renderer',
+        richShelfShorts: 'ytd-rich-shelf-renderer[is-shorts]',
+        viewModelShorts: '[class*="shortsLockupViewModelHost"]',
+        shelfRenderer: 'ytd-shelf-renderer',
+        chipCloud: 'yt-chip-cloud-chip-renderer',
+        tabShape: 'yt-tab-shape',
+        shelfHeader: 'yt-shelf-header-layout',
+        individualShortsLinks: 'a[href*="/shorts/"]',
+        shortsContainers: 'ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-reel-item-renderer, ytd-notification-renderer',
+        adElements: [
+            'ytd-ad-slot-renderer',
+            'ytd-in-feed-ad-layout-renderer',
+            'ytd-promoted-sparkles-web-renderer',
+            'ytd-promoted-video-renderer',
+            'ytd-display-ad-renderer',
+            'ytd-banner-promo-renderer',
+            'ytd-search-pyv-renderer',
+            'ytd-compact-promoted-video-renderer',
+            'ytd-companion-slot-renderer',
+            'ytd-action-companion-ad-renderer',
+            'ytd-mealbar-promo-renderer',
+            '#masthead-ad',
+            '#player-ads'
+        ].join(', '),
+        adBadges: 'ad-badge-view-model, feed-ad-metadata-view-model',
+        adBadgeContainers: 'ytd-video-renderer, ytd-rich-item-renderer'
+    };
 
     // ========================
     // SETTINGS & DOM FLAGS
@@ -67,9 +102,7 @@
         if (!settings.ytShorts) return;
 
         // 1. Sidebar
-        document.querySelectorAll(
-            'ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer'
-        ).forEach(el => {
+        document.querySelectorAll(SELECTORS.guideShorts).forEach(el => {
             if (processed.has(el)) return;
             if (el.querySelector('a[href*="/shorts"]')) {
                 hide(el);
@@ -77,19 +110,19 @@
         });
 
         // 2. Reel shelf tags
-        document.querySelectorAll('ytd-reel-shelf-renderer').forEach(shelf => {
-            const parent = shelf.closest('ytd-rich-section-renderer');
+        document.querySelectorAll(SELECTORS.reelShelf).forEach(shelf => {
+            const parent = shelf.closest(SELECTORS.richSection);
             hide(parent || shelf);
         });
 
         // 3. Rich shelf with is-shorts attribute
-        document.querySelectorAll('ytd-rich-shelf-renderer[is-shorts]').forEach(shelf => {
-            hide(shelf.closest('ytd-rich-section-renderer') || shelf);
+        document.querySelectorAll(SELECTORS.richShelfShorts).forEach(shelf => {
+            hide(shelf.closest(SELECTORS.richSection) || shelf);
         });
 
         // 4. View-model shorts elements
-        document.querySelectorAll('[class*="shortsLockupViewModelHost"]').forEach(el => {
-            const shelf = el.closest('ytd-shelf-renderer, ytd-rich-section-renderer');
+        document.querySelectorAll(SELECTORS.viewModelShorts).forEach(el => {
+            const shelf = el.closest(SELECTORS.shelfRenderer + ', ' + SELECTORS.richSection);
             if (shelf) {
                 hide(shelf);
             } else {
@@ -98,7 +131,7 @@
         });
 
         // 5. Shorts filter chip
-        document.querySelectorAll('yt-chip-cloud-chip-renderer').forEach(chip => {
+        document.querySelectorAll(SELECTORS.chipCloud).forEach(chip => {
             if (processed.has(chip)) return;
             if (chip.querySelector('a[href*="/shorts"], [path*="shorts"]')) {
                 hide(chip);
@@ -106,7 +139,7 @@
         });
 
         // 6. Channel page Shorts tab
-        document.querySelectorAll('yt-tab-shape').forEach(tab => {
+        document.querySelectorAll(SELECTORS.tabShape).forEach(tab => {
             if (processed.has(tab)) return;
             if (tab.querySelector('a[href*="/shorts"]') || (tab.getAttribute('tab-title') || '').toLowerCase().includes('shorts')) {
                 hide(tab);
@@ -114,21 +147,18 @@
         });
 
         // 7. Shelf headers with shorts links
-        document.querySelectorAll('yt-shelf-header-layout').forEach(header => {
+        document.querySelectorAll(SELECTORS.shelfHeader).forEach(header => {
             if (processed.has(header)) return;
             if (header.querySelector('a[href*="/shorts"]')) {
-                const shelf = header.closest('ytd-shelf-renderer');
+                const shelf = header.closest(SELECTORS.shelfRenderer);
                 if (shelf) hide(shelf);
             }
         });
 
         // 8. Individual shorts links — non-protected pages
         if (!isProtectedPage()) {
-            document.querySelectorAll('a[href*="/shorts/"]').forEach(link => {
-                const c = link.closest(
-                    'ytd-rich-item-renderer, ytd-grid-video-renderer, ' +
-                    'ytd-reel-item-renderer, ytd-notification-renderer'
-                );
+            document.querySelectorAll(SELECTORS.individualShortsLinks).forEach(link => {
+                const c = link.closest(SELECTORS.shortsContainers);
                 if (c) hide(c);
             });
         }
@@ -147,17 +177,10 @@
     function removeAdElements() {
         if (!settings.ytAds) return;
 
-        document.querySelectorAll(
-            'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer, ' +
-            'ytd-promoted-sparkles-web-renderer, ytd-promoted-video-renderer, ' +
-            'ytd-display-ad-renderer, ytd-banner-promo-renderer, ' +
-            'ytd-search-pyv-renderer, ytd-compact-promoted-video-renderer, ' +
-            'ytd-companion-slot-renderer, ytd-action-companion-ad-renderer, ' +
-            'ytd-mealbar-promo-renderer, #masthead-ad, #player-ads'
-        ).forEach(hide);
+        document.querySelectorAll(SELECTORS.adElements).forEach(hide);
 
-        document.querySelectorAll('ad-badge-view-model, feed-ad-metadata-view-model').forEach(el => {
-            hide(el.closest('ytd-video-renderer, ytd-rich-item-renderer') || el);
+        document.querySelectorAll(SELECTORS.adBadges).forEach(el => {
+            hide(el.closest(SELECTORS.adBadgeContainers) || el);
         });
     }
 
