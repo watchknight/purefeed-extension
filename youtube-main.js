@@ -1,4 +1,4 @@
-// youtube-main.js — PureFeed v15 PROVEN: Non-looping zero-delay ad skip & instant video resume
+// youtube-main.js — PureFeed v16: Settings-synchronized zero-delay ad skip & instant video resume
 
 (function () {
     'use strict';
@@ -38,6 +38,21 @@
     function executeZeroDelaySkip() {
         const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
         if (!player) return;
+
+        // Check if user has disabled YouTube Ad Blocking in extension settings
+        const isAdBlockEnabled = document.documentElement.getAttribute('data-purefeed-yt-ads') !== 'false';
+        if (!isAdBlockEnabled) {
+            if (wasMutedInMain || adHandlingActive) {
+                const videos = player.querySelectorAll('video');
+                videos.forEach(v => {
+                    if (wasMutedInMain) { v.muted = false; }
+                    try { v.playbackRate = 1; } catch(e) {}
+                });
+                wasMutedInMain = false;
+                adHandlingActive = false;
+            }
+            return;
+        }
 
         const isAd = isVideoAdPlaying(player);
         const videos = player.querySelectorAll('video');
